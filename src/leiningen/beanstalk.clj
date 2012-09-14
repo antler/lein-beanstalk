@@ -21,13 +21,27 @@
       {:name env, :cname-prefix (str (:name project) "-" env)})))
 
 (defn get-project-env [project env-name]
-  (->> (or (seq (project-environments project))
-           (default-environments project))
-       (filter #(= (:name %) env-name))
-       (first)))
+  (let [env-name (keyword env-name)
+        environments (or (seq (project-environments project))
+                         (default-environments project))]
+    (first
+     (filter
+      #(= (keyword (:name %)) env-name)
+      environments))))
+
+  ;; (->> (or (seq (project-environments project))
+  ;;          (default-environments project))
+  ;;      (filter #(= (:name %) env-name))
+  ;;      (first)))
 
 (defn war-filename [project]
   (str (:name project) "-" (aws/app-version project) ".war"))
+
+(defn list-all
+  [project]
+  (println "Available applications for these credentials:")
+  (doseq [application (aws/list-applications project)]
+    (println application)))
 
 (defn deploy
   "Deploy the current project to Amazon Elastic Beanstalk."
@@ -98,9 +112,9 @@
   ([project]
      (app-info project))
   ([project env-name]
-     (if-not (get-project-env project env-name)
-       (println (str "Environment '" env-name "' not defined!"))
-       (env-info project env-name))))
+     (if-let [project-env (get-project-env project env-name)]
+       (env-info project (:cname-prefix project-env))
+       (println (str "Environment '" env-name "' not defined!")))))
 
 (defn clean
   "Cleans out old versions, except the ones currently deployed."
@@ -126,4 +140,5 @@
        "deploy"    (apply deploy project args)
        "info"      (apply info project args)
        "terminate" (apply terminate project args)
+       "list-all"  (apply list-all project args)
        (println (help-for "beanstalk")))))

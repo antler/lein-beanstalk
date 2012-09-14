@@ -72,7 +72,8 @@
    :us-west-2      "elasticbeanstalk.us-west-2.amazonaws.com"})
 
 (defn project-endpoint [project endpoints]
-  (-> project :aws (:region :us-east-1) keyword endpoints))
+  (let [region (or (-> project :aws :beanstalk :region) :us-east-1)]
+    (get endpoints (keyword region))))
 
 (defn create-bucket [client bucket]
   (when-not (.doesBucketExist client bucket)
@@ -114,6 +115,14 @@
 
 (defn find-one [pred coll]
   (first (filter pred coll)))
+
+(defn list-applications
+  "Returns the application matching the passed in name"
+  [project]
+  (let [applications (->> (beanstalk-client project)
+                          .describeApplications
+                          .getApplications)]
+    (map #(.getApplicationName %) applications)))
 
 (defn get-application
   "Returns the application matching the passed in name"
@@ -203,7 +212,7 @@
        (let [value (poll)]
          (if (pred value) value (recur))))))
 
-(defn update-environment [project env {name :name :as options}]
+(defn update-environment [project env {name :cname-prefix :as options}]
   (println (str "Updating '" name "' environment")
            "(this may take several minutes)")
   (update-environment-settings project env options)
@@ -211,7 +220,7 @@
   (update-environment-version project env))
 
 (defn deploy-environment
-  [project {name :name :as options}]
+  [project {name :cname-prefix :as options}]
   (if-let [env (get-running-env project name)]
     (update-environment project env options)
     (create-environment project options))
